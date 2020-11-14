@@ -1,0 +1,10 @@
+h1 {
+	background-color: blue;
+}
+
+img {
+	box-sizing: border-box; 
+	margin-left: 10px; 
+	margin-bottom: 10px; 
+	display: inline-block;
+}
