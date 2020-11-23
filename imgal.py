@@ -116,8 +116,8 @@ def imgal_single(path, output, nav_bar, nav_path, sort, group, width, max_img_wi
 		subfolders = [f[:-1].split('/')[-1] for f in glob(os.path.join(path,"*/"))]
 		subfolders.sort()
 		
-		fstr = "<a href='{f}/index.html' class='folder'>{f}</a>"
-		nav = "\n\t".join(fstr.format(f=f) for f in subfolders)
+		fstr = "<a href='{f}/{output}.html' class='folder'>{f}</a>"
+		nav = "\n\t".join(fstr.format(f=f, output=output) for f in subfolders)
 		
 		if nav_path is not None:
 			if nav_path[-1] == "/":
