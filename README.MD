@@ -8,13 +8,22 @@ A simple python script to generate a pleasing static html image gallery of the i
 
 ## Usage
 
-[To fill in]
+```
+Usage: imgal.py [OPTIONS]
 
-Show how to override a specific folder with recursive stuff.
-
-Show how to generate two pairs of different widths.
-
-Show how to create html links to flip between widths.
+Options:
+  -p, --path TEXT
+  -o, --output TEXT
+  -s, --sort TEXT
+  -g, --group / --no-group
+  -w, --width INTEGER
+  -m, --max-img-width INTEGER
+  -n, --nav-bar / --no-nav-bar
+  --nav-path TEXT
+  -r, --recurse / --dont-recurse
+  -t, --thumbnails / --no-thumbnails
+  --help                          Show this message and exit.
+```
 
 ## Dependencies
 
