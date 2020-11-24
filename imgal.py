@@ -5,23 +5,20 @@ import os
 import sys
 import click
 
+
+"""
+	HELPER FUNCTIONS
+"""
 image_exts = ["png", "gif", "jpg", "jpeg", "bmp"]
 
-
 def is_ext(f, exts):
-	for e in exts:
-		if f.lower().endswith("." + e):
-			return True
-	return False
+	return any( f.lower().endswith("."+e) for e in exts )
 
 def files_by_ext(path, exts, sort=None):
 	if type(exts) != type([]):
 		return "need list"
-		
-	try:
-		filenames = next(os.walk(path))[2]
-	except:
-		filenames = []
+	
+	filenames = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
 		
 	if sort == "modified":
 		pairs = [(os.path.getmtime(os.path.join(path, i)), i) for i in filenames ]
@@ -32,6 +29,9 @@ def files_by_ext(path, exts, sort=None):
 	
 	return filtered
 
+"""
+	MAIN COMMAND LINE FUNCTION
+"""
 
 @click.command()
 
@@ -51,67 +51,73 @@ def files_by_ext(path, exts, sort=None):
 
 def imgal(path, output, nav_bar, nav_path, sort, group, width, max_img_width, recurse, thumbnails):
 
+	# Step 1: Clean all input options	
 	
-	# set nav_path to highest level folder...
+	# fix max-img-width default
+	if max_img_width == -1:
+		max_img_width = width
+
+	# fix nav-path default
 	if nav_path is None:
 		if path[-1] == '/':
 			nav_path = path[:-1].split('/')[-1]
 		else:
 			nav_path = path.split('/')[-1]
 
+	# Step 2: Create index for specified folder
 	imgal_single(path, output, nav_bar, nav_path, sort, group, width, max_img_width, recurse, thumbnails)
 	
+	# Step 3: If recurse, repeat on all subdirectories
 	if recurse:
-		
-			
 		for x in os.walk(path):
 			if x[0] == path:
 				continue
 			folder = os.path.relpath(x[0], start=path)
-			print("generating index for ", folder)
+			print("...generating index for ", folder)
 			
 			imgal_single(os.path.join(path, folder), output, nav_bar, os.path.join(nav_path, folder), sort, group, width, max_img_width, recurse, thumbnails)
-		sys.exit()
-	
-	imgal_single(path, output, nav_bar, nav_path, sort, group, width, max_img_width, recurse, thumbnails)
 	
 def imgal_single(path, output, nav_bar, nav_path, sort, group, width, max_img_width, recurse, thumbnails):
-	if max_img_width == -1:
-		max_img_width = width
-	
-	sort_options = ["modified", "alphabetic", "aspect", "filesize", "compression"]
 
 	images = files_by_ext(path, image_exts, sort=sort)
 	links = [i for i in images]
 
-	# get images, depending if it a thumbnail or not
+	# Create thumbnails if specified
 	if thumbnails:
 		update_thumbnails(path)
 		images = ["." + i + ".thumbnail" for i in images]	
 		
-	# get size information
+	# Extract size information for block layout algorithm
 	imgs = []
 	for i, l in zip(images, links):
+		# Use try block in case Pillow.Image fails
 		try:
+			# Use thumbnail size if thumbnail option specified
 			if thumbnails:
 				s = Image.open(os.path.join(path, "." + l + ".thumbnail")).size
 			else:
 				s = Image.open(os.path.join(path, l)).size
 
+			# Compress image size using max_img_width
 			w, h = s
 			miw = max_img_width
 			s = (min(miw, w), int((h/w)*min(miw,w)))
+			
 			imgs += [(i,l,s)]
+			
 		except OSError:
 			pass	
 
+	# Hackish way to fix no images in folder edge case
 	if len(imgs) != 0:
 		images, links, sizes = zip(*imgs)
 	else:
 		images, links, sizes = [], [], []
+		
+	# Generate the html for the gallery
 	gallery = create_gallery(images=images, links=links, sizes=sizes, span=width)
 
-	# construct nav bar & folder list
+	# Construct the nav bar and folder list
 	if nav_bar:
 		subfolders = [f[:-1].split('/')[-1] for f in glob(os.path.join(path,"*/"))]
 		subfolders.sort()
@@ -139,46 +145,55 @@ def imgal_single(path, output, nav_bar, nav_path, sort, group, width, max_img_wi
 		nav = ""
 		path_link = ""	
 	
+	# Collect style and html index templates	
+	with open("style.css") as f:
+		style = f.read()
 	
-	f = open("style.css")
-	style = f.read()
-	f.close()
+	with open("template.html") as f:
+		html = f.read()
 	
-	f = open("template.html")
-	html = f.read()
+	# Substitute into template	
 	html = html.format(folder=path, nav=nav, path_link=path_link, css=style, gallery=gallery)
-	f.close()
 	
-	f = open(os.path.join(path, output + ".html"), 'w')
-	f.write(html)
-	f.close()
+	# Write index file
+	with open(os.path.join(path, output + ".html"), 'w') as f:
+		f.write(html)
 
-def update_thumbnails(path):
+def update_thumbnails(path, size=(300,300)):
 
+	# Collect all image files and .thumbnail files in path
 	thumbnails = files_by_ext(path, ["thumbnail"])
 	images = files_by_ext(path, image_exts)
 
 	for i in images:
+	
+		# Check to see if date modified of image file is before date modified of thumbnail
 		if "." + i + ".thumbnail" in thumbnails:
-			continue
+			thumb_time = os.path.getmtime(os.path.join(path, "." + i + ".thumbnail"))
+			img_time = os.path.getmtime(os.path.join(path, i))
+			if img_time < thumb_time:
+				continue
 
+		# Try to create thumbnail
 		try:
 			im = Image.open(os.path.join(path, i))
-			im.thumbnail((400, 400))
+			im.thumbnail(size)
 			im.save(os.path.join(path, "." + i + ".thumbnail"), "png")
 		except OSError:
 			print("Failed to generate thumbnail for ", path, i)
+			
 
-def create_gallery(images=None, links=None, sizes=None, span=800):
+def create_gallery(images=None, links=None, alts=None, sizes=None, span=800):
 	
 	# assemble gallery with block layout
-	fstr = "<a href='{l}' target='_blank' ><img src='{f}' width='{w}' height='{h}'></a>"
+	fstr = "<a href='{l}' target='_blank' ><img src='{f}' width='{w}' {alt} height='{h}'></a>"
 	layout = block_layout(sizes, span=span)
 	
 	div_rows = []	
 	for row in layout:
-		div_items = [fstr.format(f=images[ind], l=links[ind], w=int(w-10), h=int(h-10)) for ind, w, h in row]
-		div_items = ["<div style='width:100%; margin: 0px;'>"] + div_items + ["</div>"]
+		alt_text = ""
+		div_items = [fstr.format(f=images[ind], l=links[ind], alt=alt_text, w=int(w-10), h=int(h-10)) for ind, w, h in row]
+		div_items = ["<div>"] + div_items + ["</div>"]
 		div_row = "\n".join(div_items)	
 		div_rows += [div_row]
 	
@@ -186,84 +201,9 @@ def create_gallery(images=None, links=None, sizes=None, span=800):
 	
 	return gallery
 	
-
-def create_index(path, images=None, links=None, sizes=None, nav="", span=800, max_width=-1, thumbnails=True):
-	
-	# collect images files in path
-	images = files_by_ext(path, image_exts)
-	
-	# sort by date modified
-	pairs = [(os.path.getmtime(os.path.join(path, i)), i) for i in images ]
-	pairs.sort()
-	filenames = [p[1] for p in pairs]
-
-	imgs = []
-	sizes = []
-	
-	# keep only those that have a readable size
-	for i in filenames:
-		try:
-			sizes += [Image.open(os.path.join(path, i)).size]
-			imgs += [i]
-		except:
-			pass
-
-	miw = max_width
-	sizes = [(min(miw, w), int((h/w)*min(miw,w))) for w, h in sizes]
-	
-	#---
-
-	# compute layout
-	# assemble gallery with block layout
-	fstr = "<a href='{l}' target='_blank' ><img src='{f}' width='{w}' height='{h}'></a>"
-	layout = block_layout(sizes, span=span)
-	div_rows = []	
-	for row in layout:
-		div_items = []
-		for ind, w, h in row:
-			src=imgs[ind]
-			if thumbnails:
-				src = "." + src + ".thumbnail"
-			div_items.append(fstr.format(f=src, l=imgs[ind], w=int(w-10), h=int(h-10)))	
-			
-		div_items = ["<div style='width:100%; margin: 0px;'>"] + div_items + ["</div>"]
-		div_row = "\n".join(div_items)	
-		div_rows += [div_row]
-	
-	gallery = "\n\n".join(div_rows)
-	
-	# construct nav bar & folder list
-	# TODO: fix this, don't split...
-	subfolders = [f[:-1].split('/')[-1] for f in glob(path+"*/")]
-	fstr = "<a href='{f}/index.html' class='folder'>{f}</a>"
-	nav = "\n\t".join(fstr.format(f=f) for f in subfolders)
-	
-	items = path.split("/")
-	path_link = ""
-	href = ".."
-	for k, i in enumerate(items[:-1]):
-		href = "/".join([".."]*(len(items)-k-2))
-		if href == "":
-			href = "."
-		path_link += f"<a href='{href}/index.html'>{i}</a>/"
-		
-
-	# open css & template files, assemble html page, then write
-	f = open("style.css")
-	style = f.read()
-	f.close()
-	
-	f = open("template.html")
-	html = f.read()
-	html = html.format(folder=path, nav=nav, path_link=path_link, css=style, gallery=gallery)
-	f.close()
-	
-	f = open(os.path.join(path, "index.html"), 'w')
-	f.write(html)
-	f.close()
-	
 def block_layout(sizes, span=1000):
 
+	# Define the cost function
 	def cost(x,y):
 		return np.sum(np.abs(x-y))
 
@@ -304,10 +244,6 @@ def block_layout(sizes, span=1000):
 		
 	return rows
 
-
 if __name__ == "__main__":
-
 	imgal()
 	
-
-
