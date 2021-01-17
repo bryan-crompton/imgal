@@ -13,11 +13,23 @@ h1 {
 
 img {
 	box-sizing: border-box; 
+	margin-left: 0px; 
+	margin-bottom: 0px;
+	margin-right: 0px;
+	margin-top: 0px; 
+	border-width: 0px;
+	display: inline-block;
+	padding: 0px;
+}
+
+.img-link {
+	text-decoration: none;
+	box-sizing: border-box; 
 	margin-left: 10px; 
 	margin-bottom: 10px;
 	margin-right: 0px;
 	margin-top: 0px; 
-	background-color: white;
+	border-width: 0px;
 	display: inline-block;
 	padding: 0px;
 }
@@ -27,17 +39,12 @@ body {
 	text-align:center;
 }
 
-.nav a {
-	min-width: 250px;
-}
-
-.nav {
-	margin: 20px;
-}
 
 .folder {
+
+	min-width: 200px;
 	text-decoration:none; 
-	font-size:20pt; 
+	font-size:16pt; 
 	padding: 10px; 
 	margin: 10px; 
 	border-style: solid; 

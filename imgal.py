@@ -29,6 +29,18 @@ def files_by_ext(path, exts, sort=None):
 	filtered = [f for f in filenames if is_ext(f, exts)]	
 	
 	return filtered
+	
+def files_by_ext_recurse(path, exts, sort=None):
+
+	all_files = []
+
+	for x in os.walk(path):
+		relpath = os.path.relpath(x[0], start=path)
+		all_files += [os.path.join(relpath, p) for p in files_by_ext(x[0], exts)]		
+		
+	print(all_files)
+	return all_files
+	
 
 """
 	MAIN COMMAND LINE FUNCTION
@@ -113,7 +125,7 @@ def imgal_single(**kwargs):
 
 
 
-	images = files_by_ext(path, image_exts, sort=sort)
+	images = files_by_ext_recurse(path, image_exts, sort=sort)
 	links = [i for i in images]
 
 	# Create thumbnails if specified
@@ -276,7 +288,7 @@ def update_meta_file(path, filename):
 	try:
 		c = im.resize((1, 1)).getpixel((0, 0))
 		color = '#{:02x}{:02x}{:02x}'.format(*c)
-	except TypeError:
+	except (TypeError, IndexError) as e:
 		color = "#FFFFF"
 
 
@@ -307,7 +319,7 @@ def update_meta_file(path, filename):
 def create_gallery(images=None, links=None, alts=None, sizes=None, span=800):
 	
 	# assemble gallery with block layout
-	fstr = "<a href='{l}' target='_blank' ><img src='{f}' width='{w}' {alt} height='{h}'></a>"
+	fstr = "<a href='{l}' target='_blank' class='img-link'><img src='{f}' width='{w}' {alt} height='{h}'></a>"
 	layout = block_layout(sizes, span=span)
 	
 	div_rows = []	
@@ -315,10 +327,10 @@ def create_gallery(images=None, links=None, alts=None, sizes=None, span=800):
 
 		div_items = [fstr.format(f=images[ind], l=links[ind], alt=alts[ind], w=int(w-10), h=int(h-10)) for ind, w, h in row]
 		div_items = ["<div>"] + div_items + ["</div>"]
-		div_row = "\n".join(div_items)	
+		div_row = "".join(div_items)	
 		div_rows += [div_row]
 	
-	gallery = "\n\n".join(div_rows)
+	gallery = "\n\n".join(['<div>'] + div_rows + ['</div>'])
 	
 	return gallery
 	
@@ -334,27 +346,38 @@ def block_layout(sizes, span=1000):
 	while len(sizes) > 0:
 		ind = 1
 		best_perf = span*100
-		for k in range(1, min(len(sizes), 10)):
+		for k in range(1, min(len(sizes)+1, 10)):
 			ws = np.array([s[0] for s in sizes[:k]])
 			hs = np.array([s[1] for s in sizes[:k]])
 			
 			new_h = span/np.sum(ws/hs)
 			new_ws = ws/hs*new_h
 			
+
+			
 			#perf = cost(new_ws,ws)
 			perf = np.sum(np.abs(new_ws-ws))
 			if perf <= best_perf:
 				best_perf = perf
 				ind = k
+				
 		
 		ws = np.array([s[0] for s in sizes[:ind]])
 		hs = np.array([s[1] for s in sizes[:ind]])
 
 		new_h = span*1/np.sum(ws/hs)
 		new_ws = ws/hs*new_h
-		
+	
 		new_ws = [int(w) for w in new_ws]
-		new_ws[0] = new_ws[0] + (span - sum(new_ws))
+		new_ws[0] = new_ws[0] + (span + 10 - sum(new_ws))
+
+		if len(sizes) == ind and ind == 1:
+			alpha = np.min(new_ws/ws) 
+			if alpha >= 2:
+				print(np.min(new_ws/ws), new_h)
+				new_ws = [ws[0]*2]
+				new_h = hs[0]*2
+
 		
 		row = list(zip(indices[:ind], new_ws, [int(new_h)]*ind))
 		
